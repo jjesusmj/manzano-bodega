@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#D9231A">
+<meta name="apple-mobile-web-app-title" content="Depósitos">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<title>Depósitos</title>
+<script src="config.js"></script>
+<style>
+  :root{
+    --rojo:#D9231A; --rojo-osc:#B01A12; --rojo-claro:#FDECEB;
+    --texto:#1E1E1E; --gris:#6B6B6B; --borde:#E6E6E6; --fondo:#F7F7F7;
+    --radio:14px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--fondo);color:var(--texto);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;-webkit-text-size-adjust:100%}
+  button,input{font:inherit;color:inherit}
+  button{cursor:pointer;border:0;background:none}
+  .oculto{display:none!important}
+
+  /* Cabecera */
+  header{position:sticky;top:0;z-index:5;background:var(--rojo);color:#fff;
+    padding:calc(10px + env(safe-area-inset-top)) max(14px, calc((100% - 532px) / 2)) 10px;display:flex;align-items:center;gap:12px}
+  header img{width:42px;height:42px;border-radius:10px;box-shadow:0 0 0 2px rgba(255,255,255,.85)}
+  header .titulo{flex:1;line-height:1.15}
+  header .titulo b{display:block;font-size:18px}
+  header .titulo span{font-size:13px;opacity:.9}
+  .btn-icono{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:#fff}
+  .btn-icono:active{background:rgba(255,255,255,.18)}
+  .btn-icono svg{width:24px;height:24px}
+
+  main{max-width:560px;margin:0 auto;padding:14px 14px 8px}
+  .tarjeta{background:#fff;border:1px solid var(--borde);border-radius:var(--radio);padding:14px;margin-bottom:12px}
+  .etiqueta{font-size:13px;font-weight:600;color:var(--gris);text-transform:uppercase;letter-spacing:.04em;margin:0 0 10px}
+
+  /* Selector segmentado */
+  .segmentos{display:flex;background:#EFEFEF;border-radius:12px;padding:4px;gap:4px}
+  .segmentos button{flex:1;min-height:44px;border-radius:9px;font-weight:600;color:#444}
+  .segmentos button[aria-pressed="true"]{background:#fff;color:var(--rojo);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+  .segmentos.grande button{min-height:50px;font-size:17px}
+  .segmentos.grande button[aria-pressed="true"]{background:var(--rojo);color:#fff}
+
+  /* Rejilla de depósitos */
+  .rejilla{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+  .rejilla button{min-height:48px;border-radius:10px;border:1.5px solid var(--borde);background:#fff;
+    font-size:18px;font-weight:700}
+  .rejilla button[aria-pressed="true"]{background:var(--rojo);border-color:var(--rojo);color:#fff}
+  .rejilla button.sin-datos{color:#B5B5B5;border-style:dashed}
+  .rejilla button.sin-datos[aria-pressed="true"]{color:#fff;border-style:solid}
+  .rejilla button:active{transform:scale(.96)}
+
+  /* Calculadora */
+  .cabecera-calc{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+  .cabecera-calc h2{margin:0;font-size:20px}
+  .cabecera-calc small{color:var(--gris);font-size:12px;text-align:right}
+  .campo{display:flex;align-items:center;border:2px solid var(--borde);border-radius:12px;margin:12px 0;background:#fff}
+  .campo:focus-within{border-color:var(--rojo)}
+  .campo input{flex:1;min-width:0;border:0;outline:0;background:transparent;padding:12px 14px;
+    font-size:34px;font-weight:700;font-variant-numeric:tabular-nums}
+  .campo .unidad{padding:0 16px;font-size:20px;font-weight:600;color:var(--gris)}
+  .resultados{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+  .resultado{background:var(--rojo-claro);border-radius:12px;padding:12px 10px;min-width:0;overflow:hidden}
+  .resultado span{display:block;font-size:13px;color:var(--rojo-osc);font-weight:600}
+  .resultado b{display:block;font-size:clamp(18px,5.6vw,26px);font-variant-numeric:tabular-nums;margin-top:2px;white-space:nowrap}
+  .resultado b small{font-size:.6em;font-weight:600;color:var(--gris);margin-left:3px}
+  .aviso{margin-top:10px;padding:10px 12px;border-radius:10px;background:#FFF6E0;color:#7A5300;font-size:14px}
+  .vacio{color:var(--gris);text-align:center;padding:18px 6px;margin:0}
+
+  /* Botones */
+  .btn{display:block;width:100%;min-height:50px;border-radius:12px;font-weight:700;font-size:17px}
+  .btn-rojo{background:var(--rojo);color:#fff}
+  .btn-rojo:active{background:var(--rojo-osc)}
+  .btn-borde{border:1.5px solid var(--rojo);color:var(--rojo);background:#fff}
+  .btn-texto{color:var(--gris);min-height:44px;width:100%}
+  .btn[disabled]{opacity:.5}
+
+  /* Pantalla de acceso */
+  .acceso{position:relative;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:24px;text-align:center;background:#fff}
+  .acceso img{width:120px;height:120px;border-radius:24px;margin-bottom:18px}
+  .acceso h1{font-size:22px;margin:0 0 4px}
+  .acceso p{color:var(--gris);margin:0 0 22px}
+  .acceso form{width:100%;max-width:320px}
+  .acceso input[type=password]{width:100%;text-align:center;font-size:24px;letter-spacing:.2em;
+    padding:12px;border:2px solid var(--borde);border-radius:12px;outline:0;margin-bottom:12px}
+  .acceso input[type=password]:focus{border-color:var(--rojo)}
+  .recordar{display:flex;align-items:center;justify-content:center;gap:8px;color:var(--gris);font-size:15px;margin:12px 0 0}
+  .recordar input{width:20px;height:20px;accent-color:var(--rojo)}
+  .error{color:var(--rojo-osc);font-weight:600;min-height:22px;margin:8px 0 0}
+
+  /* Anexo */
+  .lista-dep{list-style:none;margin:0;padding:0}
+  .lista-dep li button{width:100%;display:grid;grid-template-columns:54px 1fr auto;align-items:center;gap:10px;
+    text-align:left;padding:12px 4px;border-bottom:1px solid var(--borde)}
+  .lista-dep li:last-child button{border-bottom:0}
+  .lista-dep .num{font-size:20px;font-weight:800;color:var(--rojo);text-align:center}
+  .lista-dep .det{font-size:14px;color:var(--gris);line-height:1.35}
+  .lista-dep .det b{color:var(--texto);font-weight:600}
+  .lista-dep .flecha{color:#BBB;font-size:22px}
+  .form-ed label{display:block;font-size:14px;font-weight:600;color:var(--gris);margin:12px 0 6px}
+  .form-ed input{width:100%;font-size:20px;padding:11px 12px;border:2px solid var(--borde);border-radius:10px;outline:0}
+  .form-ed input:focus{border-color:var(--rojo)}
+  .form-ed .nota{font-size:13px;color:var(--gris);margin:4px 0 0}
+  .fila-btn{display:grid;gap:10px;margin-top:18px}
+
+  /* Diálogo y carga */
+  .velo{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:20;display:flex;align-items:center;justify-content:center;padding:20px}
+  .dialogo{background:#fff;border-radius:16px;padding:20px;width:100%;max-width:360px;text-align:center}
+  .dialogo p{margin:0 0 18px;font-size:17px}
+  .dialogo .fila-btn{grid-template-columns:1fr 1fr;margin-top:0}
+  .girando{width:36px;height:36px;border:4px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:g 0.8s linear infinite}
+  @keyframes g{to{transform:rotate(360deg)}}
+  .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);
+    background:#1E1E1E;color:#fff;padding:12px 18px;border-radius:12px;z-index:30;font-size:15px;max-width:90vw;text-align:center}
+
+  .firma{text-align:center;font-size:10.5px;color:#ABABAB;letter-spacing:.04em;
+    padding:6px 0 calc(18px + env(safe-area-inset-bottom))}
+  .firma::before{content:"";display:block;width:20px;height:1.5px;border-radius:2px;background:var(--rojo);opacity:.3;margin:0 auto 6px}
+  .acceso .firma{position:absolute;left:0;right:0;bottom:0}
+  .firma b{color:var(--rojo);font-weight:600;opacity:.85}
+  @media (max-width:360px){ .rejilla{grid-template-columns:repeat(5,1fr)} }
+  @media (min-width:700px){ main{padding-top:24px} }
+</style>
+</head>
+<body>
+
+<!-- ACCESO -->
+<section id="vAcceso" class="acceso">
+  <img src="logo.png" alt="Aceites Manzano">
+  <h1>Capacidad Depósitos</h1>
+  <p>Bodega · Aceites Manzano</p>
+  <form id="fAcceso" autocomplete="off">
+    <input id="iPin" type="password" inputmode="numeric" placeholder="PIN" aria-label="PIN de entrada" autocomplete="off">
+    <button class="btn btn-rojo" type="submit">Entrar</button>
+    <label class="recordar"><input id="cRecordar" type="checkbox" checked> Recordar en este dispositivo</label>
+    <p class="error" id="eAcceso" role="alert"></p>
+  </form>
+  <footer class="firma">Por <b>JuanJe</b></footer>
+</section>
+
+<!-- APP -->
+<div id="vApp" class="oculto">
+  <header>
+    <img src="logo.png" alt="">
+    <div class="titulo"><b>Capacidad Depósitos</b><span>Bodega</span></div>
+    <button class="btn-icono" id="bAnexo" aria-label="Editar depósitos">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+    </button>
+  </header>
+
+  <!-- CALCULADORA -->
+  <main id="vCalc">
+    <div class="segmentos grande" id="sTipo" role="group" aria-label="Tipo de aceite">
+      <button data-tipo="Oliva" aria-pressed="true">Oliva</button>
+      <button data-tipo="Semillas" aria-pressed="false">Semillas</button>
+    </div>
+
+    <div class="tarjeta" style="margin-top:12px">
+      <p class="etiqueta">Depósito</p>
+      <div class="rejilla" id="rejilla"></div>
+      <p class="vacio oculto" id="sinDep">No hay depósitos de este tipo. Añádelos desde el lápiz de arriba.</p>
+    </div>
+
+    <div class="tarjeta" id="tCalc">
+      <div class="cabecera-calc">
+        <h2 id="hDep">Elige un depósito</h2>
+        <small id="hConst"></small>
+      </div>
+      <div class="segmentos" id="sUnidad" role="group" aria-label="Dato que introduces">
+        <button data-u="cm" aria-pressed="true">cm</button>
+        <button data-u="kg" aria-pressed="false">kg</button>
+        <button data-u="litros" aria-pressed="false">litros</button>
+      </div>
+      <label class="campo">
+        <input id="iValor" type="text" inputmode="decimal" placeholder="0" aria-label="Valor" disabled>
+        <span class="unidad" id="uValor">cm</span>
+      </label>
+      <div class="resultados" id="resultados">
+        <div class="resultado"><span id="r1n">Kilos</span><b id="r1">–</b></div>
+        <div class="resultado"><span id="r2n">Litros</span><b id="r2">–</b></div>
+      </div>
+      <div class="aviso oculto" id="aviso"></div>
+    </div>
+  </main>
+
+  <!-- ANEXO -->
+  <main id="vAnexo" class="oculto">
+    <button class="btn btn-texto" id="bVolver" style="text-align:left;width:auto;padding:0 4px">‹ Volver a la calculadora</button>
+    <div class="segmentos grande" id="sTipoEd" role="group" aria-label="Tipo de depósito" style="margin-top:6px">
+      <button data-tipo="Oliva" aria-pressed="true">Oliva</button>
+      <button data-tipo="Semillas" aria-pressed="false">Semillas</button>
+    </div>
+    <div class="tarjeta" style="margin-top:12px">
+      <ul class="lista-dep" id="listaEd"></ul>
+    </div>
+    <button class="btn btn-rojo" id="bNuevo">+ Añadir depósito</button>
+  </main>
+
+  <!-- FORMULARIO -->
+  <main id="vForm" class="oculto">
+    <div class="tarjeta form-ed">
+      <h2 id="hForm" style="margin:0 0 4px;font-size:20px">Depósito</h2>
+      <label for="fTipo">Tipo</label>
+      <div class="segmentos" id="sTipoForm" role="group">
+        <button type="button" data-tipo="Oliva" aria-pressed="true">Oliva</button>
+        <button type="button" data-tipo="Semillas" aria-pressed="false">Semillas</button>
+      </div>
+      <label for="fNum">Número</label>
+      <input id="fNum" type="text" inputmode="numeric">
+      <label for="fDes">Desnivel (kg)</label>
+      <input id="fDes" type="text" inputmode="text" placeholder="0">
+      <p class="nota">Puede ser negativo (ej. -280). Vacío cuenta como 0.</p>
+      <label for="fKo">Kg/cm oliva</label>
+      <input id="fKo" type="text" inputmode="decimal">
+      <label for="fKs">Kg/cm semillas</label>
+      <input id="fKs" type="text" inputmode="decimal">
+      <p class="nota">El depósito usa la constante de su tipo. La otra se guarda como referencia.</p>
+      <p class="error" id="eForm" role="alert"></p>
+      <div class="fila-btn">
+        <button class="btn btn-rojo" id="bGuardar">Guardar</button>
+        <button class="btn btn-borde" id="bBorrar">Borrar depósito</button>
+        <button class="btn btn-texto" id="bCancelar">Cancelar</button>
+      </div>
+    </div>
+  </main>
+  <footer class="firma">Por <b>JuanJe</b></footer>
+</div>
+
+<!-- Diálogos -->
+<div class="velo oculto" id="vCarga"><div class="girando"></div></div>
+<div class="velo oculto" id="vDialogo"><div class="dialogo">
+  <p id="dTexto"></p>
+  <input id="dInput" type="password" class="oculto" style="width:100%;font-size:20px;padding:11px;border:2px solid var(--borde);border-radius:10px;margin:-6px 0 16px;text-align:center" aria-label="Contraseña">
+  <div class="fila-btn"><button class="btn btn-borde" id="dNo">Cancelar</button><button class="btn btn-rojo" id="dSi">Aceptar</button></div>
+</div></div>
+<div class="toast oculto" id="toast"></div>
+
+<script>
+/*CALC-START*/
+function kDe(dep) {
+  return dep.tipo === 'Oliva' ? dep.kOliva : dep.kSemillas;
+}
+function configurado(dep) {
+  var k = kDe(dep);
+  return typeof k === 'number' && k > 0;
+}
+/** Convierte el texto del usuario ("12,5") en número. Devuelve null si no es válido. */
+function leerNumero(texto, permitirNegativo) {
+  var s = String(texto || '').trim().replace(/\s/g, '').replace(',', '.');
+  if (s === '') return null;
+  var patron = permitirNegativo ? /^-?\d*\.?\d+$|^-?\d+\.$/ : /^\d*\.?\d+$|^\d+\.$/;
+  if (!patron.test(s)) return null;
+  return Number(s);
+}
+/** Formato español con punto de miles y 2 decimales: 1.528,80 */
+function fmt(n) {
+  var neg = n < 0;
+  var partes = Math.abs(n).toFixed(2).split('.');
+  var entero = partes[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return (neg ? '-' : '') + entero + ',' + partes[1];
+}
+/**
+ * KG = CM × k + desnivel   ·   Litros = KG ÷ densidad
+ * Inverso: CM = (KG − desnivel) ÷ k
+ */
+function calcular(dep, unidad, valor, densidad) {
+  var k = kDe(dep), c = dep.desnivel || 0, cm, kg, l, aviso = '';
+  if (unidad === 'cm') {
+    cm = valor;
+    kg = cm * k + c;
+    if (kg < 0) { kg = 0; aviso = 'Por debajo del nivel mínimo: el depósito está a 0 kg.'; }
+    l = kg / densidad;
+  } else {
+    kg = unidad === 'kg' ? valor : valor * densidad;
+    l = unidad === 'litros' ? valor : kg / densidad;
+    cm = (kg - c) / k;
+    if (cm < 0) { cm = 0; aviso = 'Esa cantidad cabe en el fondo fijo del depósito (' + fmt(c) + ' kg): 0 cm.'; }
+  }
+  return { cm: cm, kg: kg, l: l, aviso: aviso };
+}
+/*CALC-END*/
+
+/* ---------- Estado ---------- */
+var E = {
+  pin: '', clave: '', densidad: 0, depositos: [],
+  tipo: 'Oliva', dep: null, unidad: 'cm',
+  tipoEd: 'Oliva', editando: null, tipoForm: 'Oliva'
+};
+var $ = function (id) { return document.getElementById(id); };
+var ALMACEN = 'cdb_pin';
+
+function guardarPin(p) { try { localStorage.setItem(ALMACEN, p); } catch (e) {} }
+function pinGuardado() { try { return localStorage.getItem(ALMACEN) || ''; } catch (e) { return ''; } }
+function olvidarPin() { try { localStorage.removeItem(ALMACEN); } catch (e) {} }
+
+/* ---------- Llamadas al servidor ---------- */
+var PARAMS = {
+  entrar: ['pin'],
+  comprobarEdicion: ['pin', 'clave'],
+  guardarDeposito: ['pin', 'clave', 'dep', 'original'],
+  borrarDeposito: ['pin', 'clave', 'tipo', 'numero']
+};
+function servidor(funcion, args, ok, error) {
+  var cuerpo = { accion: funcion };
+  PARAMS[funcion].forEach(function (n, i) { cuerpo[n] = args[i]; });
+  var fallo = function (msg) {
+    $('vCarga').classList.add('oculto');
+    if (error) error(msg); else aviso(msg);
+  };
+  $('vCarga').classList.remove('oculto');
+  fetch(window.API_URL, {
+    method: 'POST',
+    redirect: 'follow',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(cuerpo)
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (res) {
+      if (!res.ok) { fallo(res.error || 'Error desconocido.'); return; }
+      $('vCarga').classList.add('oculto');
+      ok(res.datos);
+    })
+    .catch(function () { fallo('Sin conexión con el servidor. Comprueba internet e inténtalo otra vez.'); });
+}
+
+function aviso(texto) {
+  var t = $('toast');
+  t.textContent = texto;
+  t.classList.remove('oculto');
+  clearTimeout(aviso.t);
+  aviso.t = setTimeout(function () { t.classList.add('oculto'); }, 3200);
+}
+
+function dialogo(texto, conClave, alAceptar) {
+  $('dTexto').textContent = texto;
+  $('dInput').value = '';
+  $('dInput').classList.toggle('oculto', !conClave);
+  $('vDialogo').classList.remove('oculto');
+  if (conClave) setTimeout(function () { $('dInput').focus(); }, 50);
+  $('dSi').onclick = function () { $('vDialogo').classList.add('oculto'); alAceptar($('dInput').value); };
+  $('dNo').onclick = function () { $('vDialogo').classList.add('oculto'); };
+}
+
+/* ---------- Acceso ---------- */
+function entrar(pin, silencioso) {
+  servidor('entrar', [pin], function (res) {
+    E.pin = pin; E.densidad = res.densidad; E.depositos = res.depositos;
+    if ($('cRecordar').checked) guardarPin(pin); else olvidarPin();
+    $('vAcceso').classList.add('oculto');
+    $('vApp').classList.remove('oculto');
+    pintarRejilla();
+  }, function (msg) {
+    if (silencioso) olvidarPin();
+    $('eAcceso').textContent = msg;
+    $('vAcceso').classList.remove('oculto');
+  });
+}
+$('fAcceso').addEventListener('submit', function (ev) {
+  ev.preventDefault();
+  $('eAcceso').textContent = '';
+  var p = $('iPin').value.trim();
+  if (!p) { $('eAcceso').textContent = 'Escribe el PIN.'; return; }
+  entrar(p, false);
+});
+
+/* ---------- Selectores ---------- */
+function marcar(grupo, attr, valor) {
+  Array.prototype.forEach.call($(grupo).querySelectorAll('button'), function (b) {
+    b.setAttribute('aria-pressed', String(b.getAttribute(attr) === valor));
+  });
+}
+$('sTipo').addEventListener('click', function (ev) {
+  var b = ev.target.closest('button'); if (!b) return;
+  E.tipo = b.dataset.tipo; E.dep = null;
+  marcar('sTipo', 'data-tipo', E.tipo);
+  pintarRejilla(); pintarCalc();
+});
+$('sUnidad').addEventListener('click', function (ev) {
+  var b = ev.target.closest('button'); if (!b) return;
+  E.unidad = b.dataset.u;
+  marcar('sUnidad', 'data-u', E.unidad);
+  $('iValor').value = '';
+  pintarCalc();
+  if (E.dep && configurado(E.dep)) $('iValor').focus();
+});
+
+/* ---------- Calculadora ---------- */
+function depositosDe(tipo) {
+  return E.depositos.filter(function (d) { return d.tipo === tipo; });
+}
+function pintarRejilla() {
+  var lista = depositosDe(E.tipo), cont = $('rejilla');
+  cont.innerHTML = '';
+  $('sinDep').classList.toggle('oculto', lista.length > 0);
+  lista.forEach(function (d) {
+    var b = document.createElement('button');
+    b.textContent = d.numero;
+    b.setAttribute('aria-label', 'Depósito ' + d.numero + (configurado(d) ? '' : ', sin configurar'));
+    b.setAttribute('aria-pressed', String(!!E.dep && E.dep.numero === d.numero));
+    if (!configurado(d)) b.className = 'sin-datos';
+    b.addEventListener('click', function () {
+      E.dep = d;
+      pintarRejilla(); pintarCalc();
+      if (configurado(d)) {
+        $('iValor').focus();
+        $('tCalc').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+    cont.appendChild(b);
+  });
+}
+var NOMBRES = { cm: 'Centímetros', kg: 'Kilos', litros: 'Litros' };
+function pintarCalc() {
+  var d = E.dep, inp = $('iValor');
+  $('uValor').textContent = E.unidad === 'litros' ? 'L' : E.unidad;
+  var otros = ['cm', 'kg', 'litros'].filter(function (u) { return u !== E.unidad; });
+  $('r1n').textContent = NOMBRES[otros[0]];
+  $('r2n').textContent = NOMBRES[otros[1]];
+  $('aviso').classList.add('oculto');
+  $('r1').textContent = '–'; $('r2').textContent = '–';
+
+  if (!d) {
+    $('hDep').textContent = 'Elige un depósito';
+    $('hConst').textContent = '';
+    inp.disabled = true; inp.value = '';
+    return;
+  }
+  $('hDep').textContent = 'Depósito ' + d.numero + ' · ' + d.tipo;
+  if (!configurado(d)) {
+    $('hConst').textContent = '';
+    inp.disabled = true; inp.value = '';
+    mostrarAviso('Este depósito no tiene la constante Kg/cm de ' + d.tipo.toLowerCase() + '. Complétala en el anexo (lápiz de arriba).');
+    return;
+  }
+  $('hConst').innerHTML = fmtConst(kDe(d)) + ' kg/cm<br>desnivel ' + fmtConst(d.desnivel || 0) + ' kg';
+  inp.disabled = false;
+  recalcular();
+}
+function fmtConst(n) { return String(n).replace('.', ','); }
+function mostrarAviso(t) { $('aviso').textContent = t; $('aviso').classList.remove('oculto'); }
+
+function recalcular() {
+  var d = E.dep;
+  $('aviso').classList.add('oculto');
+  if (!d || !configurado(d)) return;
+  var texto = $('iValor').value;
+  if (texto.trim() === '') { $('r1').textContent = '–'; $('r2').textContent = '–'; return; }
+  var v = leerNumero(texto, false);
+  if (v === null) { $('r1').textContent = '–'; $('r2').textContent = '–'; mostrarAviso('Escribe solo números (usa coma para decimales).'); return; }
+  var r = calcular(d, E.unidad, v, E.densidad);
+  var valores = { cm: r.cm, kg: r.kg, litros: r.l };
+  var otros = ['cm', 'kg', 'litros'].filter(function (u) { return u !== E.unidad; });
+  $('r1').innerHTML = fmt(valores[otros[0]]) + '<small>' + (otros[0] === 'litros' ? 'L' : otros[0]) + '</small>';
+  $('r2').innerHTML = fmt(valores[otros[1]]) + '<small>' + (otros[1] === 'litros' ? 'L' : otros[1]) + '</small>';
+  if (r.aviso) mostrarAviso(r.aviso);
+}
+$('iValor').addEventListener('input', recalcular);
+$('iValor').addEventListener('focus', function () {
+  setTimeout(function () { $('tCalc').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 250);
+});
+
+/* ---------- Anexo ---------- */
+function mostrarVista(id) {
+  ['vCalc', 'vAnexo', 'vForm'].forEach(function (v) { $(v).classList.toggle('oculto', v !== id); });
+  window.scrollTo(0, 0);
+}
+$('bAnexo').addEventListener('click', function () {
+  if (E.clave) { abrirAnexo(); return; }
+  dialogo('Contraseña de edición', true, function (clave) {
+    if (!clave) return;
+    servidor('comprobarEdicion', [E.pin, clave], function () { E.clave = clave; abrirAnexo(); });
+  });
+});
+function abrirAnexo() { E.tipoEd = E.tipo; marcar('sTipoEd', 'data-tipo', E.tipoEd); pintarLista(); mostrarVista('vAnexo'); }
+$('bVolver').addEventListener('click', function () { mostrarVista('vCalc'); pintarRejilla(); pintarCalc(); });
+$('sTipoEd').addEventListener('click', function (ev) {
+  var b = ev.target.closest('button'); if (!b) return;
+  E.tipoEd = b.dataset.tipo; marcar('sTipoEd', 'data-tipo', E.tipoEd); pintarLista();
+});
+function txt(n) { return (n === null || n === undefined) ? '—' : fmtConst(n); }
+function pintarLista() {
+  var ul = $('listaEd'); ul.innerHTML = '';
+  var lista = depositosDe(E.tipoEd);
+  if (!lista.length) { ul.innerHTML = '<li><p class="vacio">No hay depósitos de ' + E.tipoEd.toLowerCase() + '.</p></li>'; return; }
+  lista.forEach(function (d) {
+    var li = document.createElement('li'), b = document.createElement('button');
+    b.innerHTML = '<span class="num"></span><span class="det"></span><span class="flecha">›</span>';
+    b.querySelector('.num').textContent = d.numero;
+    b.querySelector('.det').innerHTML =
+      'Desnivel <b>' + txt(d.desnivel) + '</b> kg<br>' +
+      'Oliva <b>' + txt(d.kOliva) + '</b> · Semillas <b>' + txt(d.kSemillas) + '</b>' +
+      (configurado(d) ? '' : '<br><b style="color:var(--rojo)">Sin configurar</b>');
+    b.addEventListener('click', function () { abrirForm(d); });
+    li.appendChild(b); ul.appendChild(li);
+  });
+}
+$('bNuevo').addEventListener('click', function () { abrirForm(null); });
+
+function abrirForm(d) {
+  E.editando = d;
+  E.tipoForm = d ? d.tipo : E.tipoEd;
+  marcar('sTipoForm', 'data-tipo', E.tipoForm);
+  var sig = depositosDe(E.tipoForm).reduce(function (m, x) { return Math.max(m, x.numero); }, 0) + 1;
+  $('hForm').textContent = d ? 'Editar depósito ' + d.numero + ' · ' + d.tipo : 'Nuevo depósito';
+  $('fNum').value = d ? d.numero : sig;
+  $('fDes').value = d && d.desnivel !== null ? fmtConst(d.desnivel) : '';
+  $('fKo').value = d && d.kOliva !== null ? fmtConst(d.kOliva) : '';
+  $('fKs').value = d && d.kSemillas !== null ? fmtConst(d.kSemillas) : '';
+  $('bBorrar').classList.toggle('oculto', !d);
+  $('eForm').textContent = '';
+  mostrarVista('vForm');
+}
+$('sTipoForm').addEventListener('click', function (ev) {
+  var b = ev.target.closest('button'); if (!b) return;
+  E.tipoForm = b.dataset.tipo; marcar('sTipoForm', 'data-tipo', E.tipoForm);
+});
+$('bCancelar').addEventListener('click', function () { mostrarVista('vAnexo'); });
+
+function leerCampo(id, nombre, negativo) {
+  var t = $(id).value.trim();
+  if (t === '') return '';
+  var n = leerNumero(t, negativo);
+  if (n === null) throw new Error(nombre + ' no es un número válido.');
+  return n;
+}
+$('bGuardar').addEventListener('click', function () {
+  $('eForm').textContent = '';
+  var dep;
+  try {
+    var num = leerCampo('fNum', 'Número', false);
+    if (num === '' || num < 1 || Math.floor(num) !== num) throw new Error('El número debe ser un entero mayor que 0.');
+    dep = {
+      tipo: E.tipoForm, numero: num,
+      desnivel: leerCampo('fDes', 'Desnivel', true),
+      kOliva: leerCampo('fKo', 'Kg/cm oliva', false),
+      kSemillas: leerCampo('fKs', 'Kg/cm semillas', false)
+    };
+  } catch (e) { $('eForm').textContent = e.message; return; }
+  var orig = E.editando ? { tipo: E.editando.tipo, numero: E.editando.numero } : null;
+  servidor('guardarDeposito', [E.pin, E.clave, dep, orig], function (lista) {
+    E.depositos = lista; E.dep = null;
+    E.tipoEd = dep.tipo; marcar('sTipoEd', 'data-tipo', E.tipoEd);
+    pintarLista(); mostrarVista('vAnexo'); aviso('Guardado');
+  }, function (msg) { $('eForm').textContent = msg; });
+});
+$('bBorrar').addEventListener('click', function () {
+  var d = E.editando; if (!d) return;
+  dialogo('¿Borrar el depósito ' + d.numero + ' de ' + d.tipo + '? No se puede deshacer.', false, function () {
+    servidor('borrarDeposito', [E.pin, E.clave, d.tipo, d.numero], function (lista) {
+      E.depositos = lista; E.dep = null;
+      pintarLista(); mostrarVista('vAnexo'); aviso('Borrado');
+    }, function (msg) { $('eForm').textContent = msg; });
+  });
+});
+
+/* ---------- Inicio ---------- */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+}
+(function () {
+  var p = pinGuardado();
+  if (p) { $('vAcceso').classList.add('oculto'); entrar(p, true); }
+})();
+</script>
+</body>
+</html>
