@@ -176,6 +176,10 @@
         <h2 id="hDep">Elige un depósito</h2>
         <small id="hConst"></small>
       </div>
+      <div class="segmentos oculto" id="sModo" role="group" aria-label="Desde dónde se mide" style="margin-bottom:8px">
+        <button data-m="cilindro" aria-pressed="true">Desde el cilindro</button>
+        <button data-m="fondo" aria-pressed="false">Desde el fondo</button>
+      </div>
       <div class="segmentos" id="sUnidad" role="group" aria-label="Dato que introduces">
         <button data-u="cm" aria-pressed="true">cm</button>
         <button data-u="kg" aria-pressed="false">kg</button>
@@ -225,6 +229,13 @@
       <label for="fKs">Kg/cm semillas</label>
       <input id="fKs" type="text" inputmode="decimal">
       <p class="nota">El depósito usa la constante de su tipo. La otra se guarda como referencia.</p>
+      <label for="fCono">Altura del cono inferior (cm)</label>
+      <input id="fCono" type="text" inputmode="decimal" placeholder="Vacío si no tiene cono">
+      <label for="fCil">Altura del cilindro (cm)</label>
+      <input id="fCil" type="text" inputmode="decimal" placeholder="Opcional">
+      <label for="fDen">Densidad (kg/L)</label>
+      <input id="fDen" type="text" inputmode="decimal" placeholder="Vacío = la general de Ajustes">
+      <p class="nota">Con altura de cono, el desnivel se calcula solo y se puede medir desde el cilindro o desde el fondo. La altura del cilindro sirve para avisar si la medida se pasa.</p>
       <p class="error" id="eForm" role="alert"></p>
       <div class="fila-btn">
         <button class="btn btn-rojo" id="bGuardar">Guardar</button>
@@ -269,31 +280,61 @@ function fmt(n) {
   var entero = partes[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   return (neg ? '-' : '') + entero + ',' + partes[1];
 }
+/** Densidad del depósito; si no tiene, la general de Ajustes. */
+function densidadDe(dep, general) {
+  return (typeof dep.densidad === 'number' && dep.densidad > 0) ? dep.densidad : general;
+}
+function tieneCono(dep) {
+  return typeof dep.alturaCono === 'number' && dep.alturaCono > 0;
+}
 /**
- * KG = CM × k + desnivel   ·   Litros = KG ÷ densidad
- * Inverso: CM = (KG − desnivel) ÷ k
+ * Depósito normal:  KG = CM × k + desnivel  ·  inverso CM = (KG − desnivel) ÷ k
+ * Depósito con cono (altura hc). Kilos que caben en el cono: Vc = k × hc ÷ 3
+ *   Desde el cilindro: KG = CM × k + Vc
+ *   Desde el fondo:    CM ≤ hc → KG = Vc × (CM ÷ hc)³   ·   CM > hc → KG = (CM − hc) × k + Vc
+ * Litros = KG ÷ densidad
  */
-function calcular(dep, unidad, valor, densidad) {
-  var k = kDe(dep), c = dep.desnivel || 0, cm, kg, l, aviso = '';
+function calcular(dep, unidad, valor, densidadGeneral, modo) {
+  var k = kDe(dep), rho = densidadDe(dep, densidadGeneral), cm, kg, l, avisos = [];
+  var cono = tieneCono(dep), hc = cono ? dep.alturaCono : 0, vc = cono ? k * hc / 3 : 0;
+  var fondo = cono && modo === 'fondo';
   if (unidad === 'cm') {
     cm = valor;
-    kg = cm * k + c;
-    if (kg < 0) { kg = 0; aviso = 'Por debajo del nivel mínimo: el depósito está a 0 kg.'; }
-    l = kg / densidad;
+    if (!cono) {
+      kg = cm * k + (dep.desnivel || 0);
+      if (kg < 0) { kg = 0; avisos.push('Por debajo del nivel mínimo: el depósito está a 0 kg.'); }
+    } else if (fondo) {
+      kg = cm <= hc ? vc * Math.pow(cm / hc, 3) : (cm - hc) * k + vc;
+    } else {
+      kg = cm * k + vc;
+    }
+    l = kg / rho;
   } else {
-    kg = unidad === 'kg' ? valor : valor * densidad;
-    l = unidad === 'litros' ? valor : kg / densidad;
-    cm = (kg - c) / k;
-    if (cm < 0) { cm = 0; aviso = 'Esa cantidad cabe en el fondo fijo del depósito (' + fmt(c) + ' kg): 0 cm.'; }
+    kg = unidad === 'kg' ? valor : valor * rho;
+    l = unidad === 'litros' ? valor : kg / rho;
+    if (!cono) {
+      var c = dep.desnivel || 0;
+      cm = (kg - c) / k;
+      if (cm < 0) { cm = 0; avisos.push('Esa cantidad cabe en el fondo fijo del depósito (' + fmt(c) + ' kg): 0 cm.'); }
+    } else if (fondo) {
+      cm = kg <= vc ? hc * Math.cbrt(kg / vc) : hc + (kg - vc) / k;
+    } else {
+      cm = (kg - vc) / k;
+      if (cm < 0) { cm = 0; avisos.push('Esa cantidad cabe en el cono de abajo (' + fmt(vc) + ' kg): no llega al cilindro.'); }
+    }
   }
-  return { cm: cm, kg: kg, l: l, aviso: aviso };
+  if (typeof dep.alturaCilindro === 'number' && dep.alturaCilindro > 0) {
+    var limite = dep.alturaCilindro + (fondo ? hc : 0);
+    if (cm > limite + 1e-9) avisos.push('La medida pasa de lo alto del cilindro (' + fmt(limite) + ' cm): el resultado no es exacto.');
+  }
+  return { cm: cm, kg: kg, l: l, aviso: avisos.join(' ') };
 }
 /*CALC-END*/
 
 /* ---------- Estado ---------- */
 var E = {
   pin: '', clave: '', densidad: 0, depositos: [],
-  tipo: 'Oliva', dep: null, unidad: 'cm',
+  tipo: 'Oliva', dep: null, unidad: 'cm', modo: 'cilindro',
   tipoEd: 'Oliva', editando: null, tipoForm: 'Oliva'
 };
 var $ = function (id) { return document.getElementById(id); };
@@ -302,6 +343,10 @@ var ALMACEN = 'cdb_pin';
 function guardarPin(p) { try { localStorage.setItem(ALMACEN, p); } catch (e) {} }
 function pinGuardado() { try { return localStorage.getItem(ALMACEN) || ''; } catch (e) { return ''; } }
 function olvidarPin() { try { localStorage.removeItem(ALMACEN); } catch (e) {} }
+var ALMACEN_MODO = 'cdb_modo';
+function guardarModo(m) { try { localStorage.setItem(ALMACEN_MODO, m); } catch (e) {} }
+function modoGuardado() { try { return localStorage.getItem(ALMACEN_MODO) === 'fondo' ? 'fondo' : 'cilindro'; } catch (e) { return 'cilindro'; } }
+E.modo = modoGuardado();
 
 /* ---------- Llamadas al servidor ---------- */
 var PARAMS = {
@@ -385,6 +430,13 @@ $('sTipo').addEventListener('click', function (ev) {
   marcar('sTipo', 'data-tipo', E.tipo);
   pintarRejilla(); pintarCalc();
 });
+$('sModo').addEventListener('click', function (ev) {
+  var b = ev.target.closest('button'); if (!b) return;
+  E.modo = b.dataset.m;
+  guardarModo(E.modo);
+  marcar('sModo', 'data-m', E.modo);
+  pintarCalc();
+});
 $('sUnidad').addEventListener('click', function (ev) {
   var b = ev.target.closest('button'); if (!b) return;
   E.unidad = b.dataset.u;
@@ -428,6 +480,8 @@ function pintarCalc() {
   $('r2n').textContent = NOMBRES[otros[1]];
   $('aviso').classList.add('oculto');
   $('r1').textContent = '–'; $('r2').textContent = '–';
+  $('sModo').classList.toggle('oculto', !(d && tieneCono(d)));
+  marcar('sModo', 'data-m', E.modo);
 
   if (!d) {
     $('hDep').textContent = 'Elige un depósito';
@@ -442,7 +496,10 @@ function pintarCalc() {
     mostrarAviso('Este depósito no tiene la constante Kg/cm de ' + d.tipo.toLowerCase() + '. Complétala en el anexo (lápiz de arriba).');
     return;
   }
-  $('hConst').innerHTML = fmtConst(kDe(d)) + ' kg/cm<br>desnivel ' + fmtConst(d.desnivel || 0) + ' kg';
+  var rho = densidadDe(d, E.densidad);
+  $('hConst').innerHTML = fmtConst(kDe(d)) + ' kg/cm<br>' +
+    (tieneCono(d) ? 'cono ' + fmtConst(d.alturaCono) + ' cm' : 'desnivel ' + fmtConst(d.desnivel || 0) + ' kg') +
+    (rho !== E.densidad ? '<br>densidad ' + fmtConst(rho) : '');
   inp.disabled = false;
   recalcular();
 }
@@ -457,7 +514,7 @@ function recalcular() {
   if (texto.trim() === '') { $('r1').textContent = '–'; $('r2').textContent = '–'; return; }
   var v = leerNumero(texto, false);
   if (v === null) { $('r1').textContent = '–'; $('r2').textContent = '–'; mostrarAviso('Escribe solo números (usa coma para decimales).'); return; }
-  var r = calcular(d, E.unidad, v, E.densidad);
+  var r = calcular(d, E.unidad, v, E.densidad, E.modo);
   var valores = { cm: r.cm, kg: r.kg, litros: r.l };
   var otros = ['cm', 'kg', 'litros'].filter(function (u) { return u !== E.unidad; });
   $('r1').innerHTML = fmt(valores[otros[0]]) + '<small>' + (otros[0] === 'litros' ? 'L' : otros[0]) + '</small>';
@@ -499,6 +556,8 @@ function pintarLista() {
     b.querySelector('.det').innerHTML =
       'Desnivel <b>' + txt(d.desnivel) + '</b> kg<br>' +
       'Oliva <b>' + txt(d.kOliva) + '</b> · Semillas <b>' + txt(d.kSemillas) + '</b>' +
+      (tieneCono(d) ? '<br>Cono <b>' + txt(d.alturaCono) + '</b> cm · Cilindro <b>' + txt(d.alturaCilindro) + '</b> cm' : '') +
+      (typeof d.densidad === 'number' ? '<br>Densidad <b>' + txt(d.densidad) + '</b>' : '') +
       (configurado(d) ? '' : '<br><b style="color:var(--rojo)">Sin configurar</b>');
     b.addEventListener('click', function () { abrirForm(d); });
     li.appendChild(b); ul.appendChild(li);
@@ -516,6 +575,9 @@ function abrirForm(d) {
   $('fDes').value = d && d.desnivel !== null ? fmtConst(d.desnivel) : '';
   $('fKo').value = d && d.kOliva !== null ? fmtConst(d.kOliva) : '';
   $('fKs').value = d && d.kSemillas !== null ? fmtConst(d.kSemillas) : '';
+  $('fCono').value = d && d.alturaCono !== null && d.alturaCono !== undefined ? fmtConst(d.alturaCono) : '';
+  $('fCil').value = d && d.alturaCilindro !== null && d.alturaCilindro !== undefined ? fmtConst(d.alturaCilindro) : '';
+  $('fDen').value = d && d.densidad !== null && d.densidad !== undefined ? fmtConst(d.densidad) : '';
   $('bBorrar').classList.toggle('oculto', !d);
   $('eForm').textContent = '';
   mostrarVista('vForm');
@@ -543,7 +605,10 @@ $('bGuardar').addEventListener('click', function () {
       tipo: E.tipoForm, numero: num,
       desnivel: leerCampo('fDes', 'Desnivel', true),
       kOliva: leerCampo('fKo', 'Kg/cm oliva', false),
-      kSemillas: leerCampo('fKs', 'Kg/cm semillas', false)
+      kSemillas: leerCampo('fKs', 'Kg/cm semillas', false),
+      alturaCono: leerCampo('fCono', 'Altura del cono', false),
+      alturaCilindro: leerCampo('fCil', 'Altura del cilindro', false),
+      densidad: leerCampo('fDen', 'Densidad', false)
     };
   } catch (e) { $('eForm').textContent = e.message; return; }
   var orig = E.editando ? { tipo: E.editando.tipo, numero: E.editando.numero } : null;

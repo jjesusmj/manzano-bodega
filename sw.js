@@ -1,7 +1,7 @@
 // Service worker mínimo: hace la app instalable y guarda la pantalla para abrirla rápido.
 // Siempre intenta la red primero, así cada cambio publicado se ve al momento.
 // Las llamadas al servidor de Google (otro dominio) no pasan por aquí.
-var CACHE = 'depositos-v1';
+var CACHE = 'depositos-v2';
 var ARCHIVOS = ['./', 'index.html', 'config.js', 'logo.png', 'manifest.webmanifest'];
 
 self.addEventListener('install', function (e) {
